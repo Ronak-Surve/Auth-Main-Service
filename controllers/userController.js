@@ -2,8 +2,10 @@ const mongoose = require("mongoose");
 const express = require("express");
 const userModel = require("../models/userModel");
 const generateApiKey = require("../utilities/generateApiKey");
+const {setUser, getUser} = require("../services/authService");
 const bcrypt = require("bcrypt");
 const config = require("../config");
+const jwt = require("jsonwebtoken");
 
 async function HandleUserRegistration(req,res) {
 
@@ -26,7 +28,7 @@ async function HandleUserRegistration(req,res) {
         api_key : apiKey, 
     });
 
-    return res.status(201).json({message : "User registeration successful"})
+    return res.render("login");
 
 }
 
@@ -38,20 +40,34 @@ async function HandleUserLogin(req,res)  {
         email : body.email,
     });
 
-    if(!user) return res.status(404).json({message : "User does not exist"});
+    if(!user) return res.status(404).json({message : "Invalid Email-ID"});
 
-    const isMatch = await bcrypt.compare(body.password, user.password);
+    const isMatch = await bcrypt.compare(body.password, user.password_hash);
 
-    if(!isMatch) return res.status(401).json({message : "Invalid credentials"})
+    if(!isMatch) return res.status(401).json({message : "Invalid Password"});
 
-    const token = jwt.sign({
-        email : user.email,
-        id : user._id
-    }, config.SECRET_KEY);
+    const token = setUser(user);
 
     res.cookie("token", token);
 
-    return res.status(200).json({message : "Successful User Login"});
+    return res.render("home");
+}
+
+async function fetchPersonalDetails(req,res) {
+
+    const apiKey = req.headers["api-key"];
+
+    const user = await userModel.findOne({
+        api_key : apiKey,
+    });
+
+    if(!user) return res.status(404).json({message : "Api key Invalid"});
+
+    return res.status(200).json({
+        first_name : user.first_name,
+        last_name : user.last_name,
+        email : user.email,
+    })
 }
 
 async function ProtectedResource(req,res)    {
@@ -59,6 +75,19 @@ async function ProtectedResource(req,res)    {
     res.send({message : "This is a protected resource"});
 }
 
-async function getApiKey
+async function getApiKey(req,res)   {
 
-module.exports = {HandleUserRegistration, HandleUserLogin, ProtectedResource}
+    const body = req.user;
+
+    const user = await userModel.findOne({
+        email : body.email,
+    });
+
+    if(!user) return res.status(404).json({message : "User does not exist"});
+
+    const apiKey = user.api_key;
+
+    return res.status(200).send(apiKey);
+}
+
+module.exports = {HandleUserRegistration, HandleUserLogin, fetchPersonalDetails,ProtectedResource, getApiKey}

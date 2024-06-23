@@ -16,11 +16,14 @@ const userSchema = mongoose.Schema({
     },
     salt : {
         type : String,
-        required : true,
+        default : "salt123",
     },
     password_hash : {
         type : String,
         required : true,
+    },
+    api_key : {
+        type : String,
     }
 });
 
@@ -28,7 +31,7 @@ userSchema.pre("save", async function(next) {
 
     const user = this;
 
-    if(!user.isModified("password")) {
+    if(!user.isModified("password_hash")) {
         return next();
     }
 
@@ -43,4 +46,4 @@ userSchema.pre("save", async function(next) {
 
 const userModel = mongoose.model("User", userSchema);
 
-module.exports = {userModel};
+module.exports = userModel;
